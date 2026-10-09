@@ -6,6 +6,7 @@ namespace Inupress\Core;
 
 use Inupress\Contracts\HookRegistry;
 use Inupress\Contracts\PluginRepository;
+use Inupress\Core\Commands\ClearCommand;
 use Inupress\Core\Commands\DiscoverCommand;
 use Inupress\Core\Commands\PluginDisableCommand;
 use Inupress\Core\Commands\PluginEnableCommand;
@@ -29,6 +30,7 @@ final class CoreServiceProvider extends PackageServiceProvider
         $package
             ->name(self::$name)
             ->hasCommands([
+                ClearCommand::class,
                 DiscoverCommand::class,
                 PluginListCommand::class,
                 PluginMigrateCommand::class,
@@ -55,6 +57,11 @@ final class CoreServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        // optimize rebuilds the plugin cache, optimize:clear removes it (same mechanism as Filament).
+        if ($this->app->runningInConsole()) {
+            $this->optimizes(optimize: 'inupress:discover', clear: 'inupress:clear', key: 'inupress');
+        }
+
         // Plain "artisan migrate" also sees migrations of enabled plugins (and only of those).
         $plugins = $this->app->make(PluginManager::class);
 
