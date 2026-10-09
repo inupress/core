@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 namespace Inupress\Core;
 
+use Inupress\Contracts\HookRegistry;
+use Inupress\Contracts\PluginRepository;
+use Inupress\Core\Commands\DiscoverCommand;
+use Inupress\Core\Commands\PluginDisableCommand;
+use Inupress\Core\Commands\PluginEnableCommand;
+use Inupress\Core\Commands\PluginListCommand;
 use Inupress\Core\Discovery\ManifestScanner;
 use Inupress\Core\Discovery\PluginCache;
+use Inupress\Core\Hooks\HookManager;
 use Inupress\Core\Resolver\DependencyResolver;
 use Inupress\Core\State\PluginState;
 use Spatie\LaravelPackageTools\Package;
@@ -17,7 +24,14 @@ final class CoreServiceProvider extends PackageServiceProvider
 
     public function configurePackage(Package $package): void
     {
-        $package->name(self::$name);
+        $package
+            ->name(self::$name)
+            ->hasCommands([
+                DiscoverCommand::class,
+                PluginListCommand::class,
+                PluginEnableCommand::class,
+                PluginDisableCommand::class,
+            ]);
     }
 
     public function packageRegistered(): void
@@ -26,5 +40,12 @@ final class CoreServiceProvider extends PackageServiceProvider
         $this->app->singleton(PluginCache::class, fn ($app) => new PluginCache($app->bootstrapPath('cache/inupress-plugins.php')));
         $this->app->singleton(PluginState::class, fn ($app) => new PluginState($app->storagePath('inupress/state.json')));
         $this->app->singleton(DependencyResolver::class);
+        $this->app->singleton(PluginManager::class);
+        $this->app->alias(PluginManager::class, PluginRepository::class);
+        $this->app->singleton(HookManager::class);
+        $this->app->alias(HookManager::class, HookRegistry::class);
+
+        // Core registers before app providers, so enabled plugins register right after it.
+        $this->app->make(PluginManager::class)->registerAll();
     }
 }
