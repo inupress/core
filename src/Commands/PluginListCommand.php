@@ -5,35 +5,28 @@ declare(strict_types=1);
 namespace Inupress\Core\Commands;
 
 use Illuminate\Console\Command;
-use Inupress\Core\PluginManager;
+use Inupress\Contracts\PluginRepository;
 
 final class PluginListCommand extends Command
 {
     protected $signature = 'inupress:plugin:list';
 
-    protected $description = 'List discovered plugins and their status';
+    protected $description = 'List installed Inupress plugins (Composer packages of type inupress-plugin)';
 
-    public function handle(PluginManager $plugins): int
+    public function handle(PluginRepository $plugins): int
     {
-        $rows = [];
-
-        foreach ($plugins->discovered()->plugins as $id => $entry) {
-            $status = match (true) {
-                $plugins->has($id) => 'enabled',
-                isset($plugins->skipped()[$id]) => 'skipped: '.$plugins->skipped()[$id],
-                default => 'disabled',
-            };
-
-            $rows[] = [$id, $entry['version'], $status];
-        }
+        $rows = array_map(
+            fn ($p) => [$p->id, $p->version],
+            array_values($plugins->all()),
+        );
 
         if ($rows === []) {
-            $this->components->info('No plugins discovered. Run inupress:discover after composer require.');
+            $this->components->info('No plugins installed. Install one with: composer require vendor/plugin');
 
             return self::SUCCESS;
         }
 
-        $this->table(['Plugin', 'Version', 'Status'], $rows);
+        $this->table(['Plugin', 'Version'], $rows);
 
         return self::SUCCESS;
     }

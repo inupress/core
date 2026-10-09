@@ -5,40 +5,39 @@ declare(strict_types=1);
 namespace Inupress\Core\Commands;
 
 use Illuminate\Console\Command;
+use Inupress\Contracts\PluginRepository;
 use Inupress\Core\Migrations\MigrationLinter;
-use Inupress\Core\PluginManager;
 
 final class PluginMigrateCommand extends Command
 {
     protected $signature = 'inupress:plugin:migrate
-        {plugin? : Plugin id; all enabled plugins when omitted}
+        {plugin? : Plugin id; all installed plugins when omitted}
         {--rollback : Roll back the last batch of the plugin migrations}
         {--force : Run in production without confirmation}';
 
-    protected $description = 'Run (or roll back) migrations of enabled plugins, after linting them';
+    protected $description = 'Lint and run (or roll back) plugin migrations; nothing runs if a plugin breaks the rules';
 
-    public function handle(PluginManager $plugins, MigrationLinter $linter): int
+    public function handle(PluginRepository $plugins, MigrationLinter $linter): int
     {
-        $ids = $this->argument('plugin') !== null ? [(string) $this->argument('plugin')] : array_keys($plugins->enabled());
+        $ids = $this->argument('plugin') !== null ? [(string) $this->argument('plugin')] : array_keys($plugins->all());
         $targets = [];
         $failed = false;
 
         foreach ($ids as $id) {
-            if (! $plugins->has($id)) {
-                $this->components->error("Plugin [$id] is not enabled.");
+            $plugin = $plugins->get($id);
+
+            if ($plugin === null) {
+                $this->components->error("Plugin [$id] is not installed.");
 
                 return self::FAILURE;
             }
 
-            $dir = $plugins->migrationPath($id);
+            $dir = $plugin->path.DIRECTORY_SEPARATOR.'database'.DIRECTORY_SEPARATOR.'migrations';
 
-            if ($dir === null) {
-                $this->components->twoColumnDetail($id, 'no migrations');
-
+            if (! is_dir($dir)) {
                 continue;
             }
 
-            // Lint everything first: nothing runs if any plugin is dirty.
             foreach ($linter->lint($dir, MigrationLinter::prefixFor($id)) as $problem) {
                 $this->components->error("[$id] $problem");
                 $failed = true;
