@@ -10,9 +10,11 @@ use Inupress\Core\Commands\DiscoverCommand;
 use Inupress\Core\Commands\PluginDisableCommand;
 use Inupress\Core\Commands\PluginEnableCommand;
 use Inupress\Core\Commands\PluginListCommand;
+use Inupress\Core\Commands\PluginMigrateCommand;
 use Inupress\Core\Discovery\ManifestScanner;
 use Inupress\Core\Discovery\PluginCache;
 use Inupress\Core\Hooks\HookManager;
+use Inupress\Core\Migrations\MigrationLinter;
 use Inupress\Core\Resolver\DependencyResolver;
 use Inupress\Core\State\PluginState;
 use Spatie\LaravelPackageTools\Package;
@@ -29,6 +31,7 @@ final class CoreServiceProvider extends PackageServiceProvider
             ->hasCommands([
                 DiscoverCommand::class,
                 PluginListCommand::class,
+                PluginMigrateCommand::class,
                 PluginEnableCommand::class,
                 PluginDisableCommand::class,
             ]);
@@ -40,6 +43,7 @@ final class CoreServiceProvider extends PackageServiceProvider
         $this->app->singleton(PluginCache::class, fn ($app) => new PluginCache($app->bootstrapPath('cache/inupress-plugins.php')));
         $this->app->singleton(PluginState::class, fn ($app) => new PluginState($app->storagePath('inupress/state.json')));
         $this->app->singleton(DependencyResolver::class);
+        $this->app->singleton(MigrationLinter::class);
         $this->app->singleton(PluginManager::class);
         $this->app->alias(PluginManager::class, PluginRepository::class);
         $this->app->singleton(HookManager::class);
@@ -47,5 +51,19 @@ final class CoreServiceProvider extends PackageServiceProvider
 
         // Core registers before app providers, so enabled plugins register right after it.
         $this->app->make(PluginManager::class)->registerAll();
+    }
+
+    public function packageBooted(): void
+    {
+        // Plain "artisan migrate" also sees migrations of enabled plugins (and only of those).
+        $plugins = $this->app->make(PluginManager::class);
+
+        foreach (array_keys($plugins->enabled()) as $id) {
+            $dir = $plugins->migrationPath($id);
+
+            if ($dir !== null) {
+                $this->loadMigrationsFrom($dir);
+            }
+        }
     }
 }

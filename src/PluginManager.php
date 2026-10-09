@@ -162,6 +162,22 @@ final class PluginManager implements PluginRepository
         return $this->state;
     }
 
+    /**
+     * Absolute path to the plugin's database/migrations, or null when it has none.
+     */
+    public function migrationPath(string $id): ?string
+    {
+        $path = $this->discovered()->plugins[$id]['path'] ?? null;
+
+        if ($path === null) {
+            return null;
+        }
+
+        $dir = $path.DIRECTORY_SEPARATOR.'database'.DIRECTORY_SEPARATOR.'migrations';
+
+        return is_dir($dir) ? $dir : null;
+    }
+
     private function warn(string $message): void
     {
         try {
