@@ -7,8 +7,10 @@ namespace Inupress\Core;
 use Filament\PanelRegistry;
 use Inupress\Contracts\HookRegistry;
 use Inupress\Contracts\PluginRepository;
+use Inupress\Contracts\ProvidesFilament;
 use Inupress\Core\Commands\PluginListCommand;
 use Inupress\Core\Commands\PluginMigrateCommand;
+use Inupress\Core\Filament\CoreFilamentPlugin;
 use Inupress\Core\Filament\PanelPlugins;
 use Inupress\Core\Hooks\HookManager;
 use Inupress\Core\Migrations\MigrationLinter;
@@ -16,14 +18,20 @@ use Inupress\Core\Plugins\ComposerPluginRepository;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
-final class CoreServiceProvider extends PackageServiceProvider
+final class CoreServiceProvider extends PackageServiceProvider implements ProvidesFilament
 {
     public static string $name = 'inupress';
+
+    public function filamentPlugin(): CoreFilamentPlugin
+    {
+        return new CoreFilamentPlugin;
+    }
 
     public function configurePackage(Package $package): void
     {
         $package
             ->name(self::$name)
+            ->hasViews()
             ->hasCommands([
                 PluginListCommand::class,
                 PluginMigrateCommand::class,
